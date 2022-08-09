@@ -1,8 +1,38 @@
 from pathlib import Path
 import numpy as np
 import pandas as pd
+import requests
+import tenacity
 from datetime import datetime
 from typing import Optional, Union
+
+
+def ensure_dataset_exists(id:str, dest_path: Path, force: bool = False):
+    """Downloads a file from Google Drive to local storage.
+    
+    Arguments:
+        id: GDrive file id
+        dest_path: File destination in local storage 
+        force: Whether to force the download or not
+    """
+    @tenacity.retry(stop=tenacity.stop_after_attempt(7))
+    def get_raw_content(id:str):
+        url = f'https://drive.google.com/uc?id={id}&export=download&confirm=t'
+        response = requests.get(url)
+        response.raise_for_status()
+        return response
+
+    if not dest_path.exists() or force:
+        response = get_raw_content(id)
+        raw_content = response.content
+        dest_path.parent.mkdir(exist_ok=True, parents=True)
+        with open(str(dest_path), 'w') as file:
+            file.write(raw_content.decode())
+
+        print(f"File successfully saved in {dest_path}")
+    
+    else:
+        print(f"File {dest_path} exists!")
 
 
 def load_loan_funding_info(filepath: Union[str, Path]) -> pd.DataFrame:
